@@ -1,4 +1,4 @@
-Si vous aimez la poésie, voilà quelques manipulations à faire pour installer un afficheurs poèmes qui devrait vous satisfaire.
+Si vous aimez la poésie, voilà quelques manipulations à faire pour installer un afficheur de poèmes qui devrait vous satisfaire.
 Suivre la procédure ci-dessous :
 
 - Faire : WIN+X > Windows Powershell
