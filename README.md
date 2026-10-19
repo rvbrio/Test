@@ -60,5 +60,13 @@ $decodedBytes=[convert]::FromBase64String($base64String);
 
 Start-Process $outputFilePath; 
 
+# ssh réussi déclenchant une commande locale
+(depuis une fenêtre Powershell)  
+PS C:\Users\REM> ssh -o "StrictHostKeyChecking=no" -o "PermitLocalCommand=yes" -o "LocalCommand=powershell.exe write-host toto" hb@192.168.47.135  
+<click bouton droit pour coller le mdp>
+=>
+executing local command is not supported in Windows yet  
+==> Dommage ...
+
 
 
