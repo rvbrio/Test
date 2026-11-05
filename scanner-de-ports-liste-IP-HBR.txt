@@ -1,0 +1,32 @@
+# Scanner de ports rudimentaire en Powershell
+# Auteur : HBR le 11/03/2024
+# Testé en Lab Windows 2022 Server (RDP-2022 + DC-2022)
+# A renommer en .ps1 avant utilisation
+
+# Usage (en LAB):
+# PS C:\Users\kiki\Desktop> C:\Users\kiki\Desktop\scanner-de-ports-liste-IP-HBR.ps1
+
+
+$ipList = ("192.168.47.110", "192.168.47.112")
+$ports = 53..139
+
+Write-Host "Liste des IP à scanner : $ipList"
+Write-Host "Liste des ports TCP à scanner : $ports"
+Write-Host ""
+
+foreach ($ip in $ipList) {
+    Write-Host "Liste des ports TCP ouverts sur : $ip"
+    foreach ($port in $ports) {
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        
+        $connection = $tcpClient.BeginConnect($ip, $port, $null, $null)
+        
+        # Attendre 2 milli seconde pour la tentative de connexion
+        $wait = $connection.AsyncWaitHandle.WaitOne(2, $false)
+        
+        if ($wait -and $tcpClient.Connected) {
+            Write-Host "$ip":"$port"
+            $tcpClient.Close()
+        }
+    }
+}
